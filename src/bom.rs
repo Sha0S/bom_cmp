@@ -79,7 +79,7 @@ pub struct BomHandler {
     paths: Vec<PathBuf>,
     boms: usize,
     items: Vec<BomItem>,
-	diff: Vec<(String, Vec<Vec<String>>)>,
+    diff: Vec<(String, Vec<Vec<String>>)>,
 }
 
 impl BomHandler {
@@ -100,32 +100,33 @@ impl BomHandler {
             }
         }
 
-		ret.sort();
-		ret.generate_diff();
+        ret.sort();
+        ret.generate_diff();
 
         Ok(ret)
     }
 
-	fn sort(&mut self) {
-		self.items.sort_by(|a,b| a.item_no.cmp(&b.item_no));
+    fn sort(&mut self) {
+        self.items.sort_by(|a, b| a.item_no.cmp(&b.item_no));
 
-		for item in self.items.iter_mut() {
-			for bom in item.boms.iter_mut().flatten() {
-				bom.order_data.sort_by(|a,b| a.order_desc.cmp(&b.order_desc));
-			}
-		}
-	}
+        for item in self.items.iter_mut() {
+            for bom in item.boms.iter_mut().flatten() {
+                bom.order_data
+                    .sort_by(|a, b| a.order_desc.cmp(&b.order_desc));
+            }
+        }
+    }
 
-	fn generate_diff(&mut self) {
-		self.diff.clear();
+    fn generate_diff(&mut self) {
+        self.diff.clear();
 
-		for item in self.items.iter() {
-			let diff = item.generate_diff();
-			if !diff.is_empty() {
-				self.diff.push((item.item_no.clone(), diff));
-			}
-		}
-	}
+        for item in self.items.iter() {
+            let diff = item.generate_diff();
+            if !diff.is_empty() {
+                self.diff.push((item.item_no.clone(), diff));
+            }
+        }
+    }
 
     pub fn get_diff(&self) -> &Vec<(String, Vec<Vec<String>>)> {
         &self.diff
@@ -171,7 +172,7 @@ impl BomItem {
         let mut ret = Vec::new();
 
         if self.boms.contains(&None) {
-			// if for one of the BOMs the item is None, then we have to populate every field
+            // if for one of the BOMs the item is None, then we have to populate every field
             ret.push(vec!["Rev".to_string()]);
             ret.push(vec!["Name".to_string()]);
             ret.push(vec!["Quantity".to_string()]);
@@ -198,68 +199,71 @@ impl BomItem {
                 }
             }
         } else {
-			// if not, then check if the values are different, and only store if they are
-			let boms = self.boms.iter().filter_map(Option::as_ref).collect::<Vec<_>>();
-			let boms_0 = boms[0];
-			
-			// First check which fields are different
-			let mut diff_tracker = [false;7];
-			for bom in boms.iter().skip(1) {
-				if bom.rev != boms_0.rev {
-					diff_tracker[0] = true;
-				}
-				if bom.name != boms_0.name {
-					diff_tracker[1] = true;
-				}
-				if bom.quantity != boms_0.quantity {
-					diff_tracker[2] = true;
-				}
-				if bom.additional_name != boms_0.additional_name {
-					diff_tracker[3] = true;
-				}
-				if bom.short_desc != boms_0.short_desc {
-					diff_tracker[4] = true;
-				}
-				if bom.ref_designator != boms_0.ref_designator {
-					diff_tracker[5] = true;
-				}
-				if bom.order_data != boms_0.order_data {
-					diff_tracker[6] = true;
-				}
-			}
+            // if not, then check if the values are different, and only store if they are
+            let boms = self
+                .boms
+                .iter()
+                .filter_map(Option::as_ref)
+                .collect::<Vec<_>>();
+            let boms_0 = boms[0];
 
-			let mut i2 = 0;
-			for (i,dt) in diff_tracker.into_iter().enumerate().skip(1) // skipping Rev
-			{
-				if dt {
-					ret.push(vec![match i {
-						0 => "Rev".to_string(),
-						1 => "Name".to_string(),
-						2 => "Quantity".to_string(),
-						3 => "Additional name".to_string(),
-						4 => "Short desc.".to_string(),
-						5 => "Ref. designator".to_string(),
-						6 => "Order data".to_string(),
-						_ => panic!()
+            // First check which fields are different
+            let mut diff_tracker = [false; 7];
+            for bom in boms.iter().skip(1) {
+                if bom.rev != boms_0.rev {
+                    diff_tracker[0] = true;
+                }
+                if bom.name != boms_0.name {
+                    diff_tracker[1] = true;
+                }
+                if bom.quantity != boms_0.quantity {
+                    diff_tracker[2] = true;
+                }
+                if bom.additional_name != boms_0.additional_name {
+                    diff_tracker[3] = true;
+                }
+                if bom.short_desc != boms_0.short_desc {
+                    diff_tracker[4] = true;
+                }
+                if bom.ref_designator != boms_0.ref_designator {
+                    diff_tracker[5] = true;
+                }
+                if bom.order_data != boms_0.order_data {
+                    diff_tracker[6] = true;
+                }
+            }
 
-					}]);
+            let mut i2 = 0;
+            for (i, dt) in diff_tracker.into_iter().enumerate().skip(1)
+            // skipping Rev
+            {
+                if dt {
+                    ret.push(vec![match i {
+                        0 => "Rev".to_string(),
+                        1 => "Name".to_string(),
+                        2 => "Quantity".to_string(),
+                        3 => "Additional name".to_string(),
+                        4 => "Short desc.".to_string(),
+                        5 => "Ref. designator".to_string(),
+                        6 => "Order data".to_string(),
+                        _ => panic!(),
+                    }]);
 
-					for bom in &boms {
-						ret[i2].push(match i {
-							0 => bom.rev.clone(),
-							1 => bom.name.clone(),
-							2 => bom.quantity.to_string(),
-							3 => bom.additional_name.clone(),
-							4 => bom.short_desc.clone(),
-							5 => bom.ref_designator.clone(),
-							6 => bom.get_mpn_list().join(", "),
-							_ => panic!()
-	
-						});
-					}
-					i2 += 1;
-				}
-			}
+                    for bom in &boms {
+                        ret[i2].push(match i {
+                            0 => bom.rev.clone(),
+                            1 => bom.name.clone(),
+                            2 => bom.quantity.to_string(),
+                            3 => bom.additional_name.clone(),
+                            4 => bom.short_desc.clone(),
+                            5 => bom.ref_designator.clone(),
+                            6 => bom.get_mpn_list().join(", "),
+                            _ => panic!(),
+                        });
+                    }
+                    i2 += 1;
+                }
+            }
         }
 
         ret
@@ -298,9 +302,12 @@ impl BomItemData {
         self.quantity
     }
 
-	pub fn get_mpn_list(&self) -> Vec<&str> {
-		self.order_data.iter().map(|f| f.order_desc.as_str()).collect()
-	}
+    pub fn get_mpn_list(&self) -> Vec<&str> {
+        self.order_data
+            .iter()
+            .map(|f| f.order_desc.as_str())
+            .collect()
+    }
 }
 
 #[derive(PartialEq, Eq, Clone)]
