@@ -1,9 +1,12 @@
-use std::path::PathBuf;
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use std::path::PathBuf;
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
 mod bom;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
     env_logger::init();
@@ -13,7 +16,7 @@ fn main() {
         ..Default::default()
     };
 
-    _ = eframe::run_native("BOM compare", options, Box::new(|_| Box::<App>::default()));
+    _ = eframe::run_native(&format!("BOM cmp (v{VERSION})"), options, Box::new(|_| Box::<App>::default()));
 }
 
 #[derive(Default)]
