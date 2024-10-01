@@ -1,5 +1,8 @@
-use log::{debug, info};
-use std::path::{Path, PathBuf};
+use log::debug;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use umya_spreadsheet::*;
 
@@ -61,6 +64,7 @@ impl RawBom {
                         quantity,
                         short_desc,
                         additional_name,
+                        rd_hashset: split_ref_designator(&ref_designator),
                         ref_designator,
                         order_data: Vec::new(),
                     },
@@ -153,7 +157,7 @@ impl BomItem {
         self.boms[index] = Some(data);
     }
 
-    fn matches(&self) -> bool {
+    /*fn matches(&self) -> bool {
         // if any are None, then return false
         if self.boms.contains(&None) {
             return false;
@@ -166,7 +170,7 @@ impl BomItem {
         }
 
         true
-    }
+    }*/
 
     fn generate_diff(&self) -> Vec<Vec<String>> {
         let mut ret = Vec::new();
@@ -233,6 +237,42 @@ impl BomItem {
                 }
             }
 
+            // generating intersection in ref_designator:
+            let mut rd_intersection: HashSet<String> = HashSet::new();
+            if diff_tracker[5] {
+                rd_intersection = boms_0
+                    .rd_hashset
+                    .intersection(&boms[1].rd_hashset)
+                    .map(|f| f.to_owned())
+                    .collect();
+                for bom in boms.iter().skip(2) {
+                    rd_intersection = bom
+                        .rd_hashset
+                        .intersection(&rd_intersection)
+                        .map(|f| f.to_owned())
+                        .collect();
+                }
+            }
+
+            // generating intersection in order_data:
+            let mut od_intersection: Vec<&str> = Vec::new();
+            if diff_tracker[6] {
+                od_intersection = boms_0.get_mpn_list();
+                for bom in boms.iter().skip(1) {
+                    let current_od = bom.get_mpn_list();
+                    let mut diffs = Vec::new();
+                    for (i, od) in od_intersection.iter_mut().enumerate() {
+                        if !current_od.contains(od) {
+                            diffs.push(i);
+                        }
+                    }
+
+                    for diff in diffs.iter().rev() {
+                        od_intersection.remove(*diff);
+                    }
+                }
+            }
+
             let mut i2 = 0;
             for (i, dt) in diff_tracker.into_iter().enumerate().skip(1)
             // skipping Rev
@@ -256,8 +296,10 @@ impl BomItem {
                             2 => bom.quantity.to_string(),
                             3 => bom.additional_name.clone(),
                             4 => bom.short_desc.clone(),
-                            5 => bom.ref_designator.clone(),
-                            6 => bom.get_mpn_list().join(", "),
+                            5 => {
+                                join_hashset(&bom.rd_hashset.difference(&rd_intersection).collect())
+                            }
+                            6 => bom.get_mpn_diff_list(&od_intersection).join(", "),
                             _ => panic!(),
                         });
                     }
@@ -269,7 +311,7 @@ impl BomItem {
         ret
     }
 
-    pub fn get_item_no(&self) -> &str {
+    /*pub fn get_item_no(&self) -> &str {
         &self.item_no
     }
 
@@ -279,7 +321,7 @@ impl BomItem {
         } else {
             None
         }
-    }
+    }*/
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -290,21 +332,71 @@ pub struct BomItemData {
     additional_name: String,
     short_desc: String,
     ref_designator: String, //Could split it up to individual positions
+    rd_hashset: HashSet<String>,
     order_data: Vec<BomOrderData>,
 }
 
+fn split_ref_designator(rd: &str) -> HashSet<String> {
+    let mut ret = HashSet::new();
+    let parts = rd.split(',');
+
+    for part in parts {
+        if let Some((a, b)) = part.split_once('-') {
+            if let Ok(start) = a[1..].parse::<i32>() {
+                if let Ok(end) = b[1..].parse::<i32>() {
+                    for i in start..=end {
+                        ret.insert(format!("{}{}", &a[0..1], i));
+                    }
+
+                    continue;
+                }
+            }
+
+            ret.insert(part.to_owned());
+        } else {
+            ret.insert(part.to_owned());
+        }
+    }
+
+    ret
+}
+
+fn join_hashset(hs: &HashSet<&String>) -> String {
+    let size: usize = hs.iter().map(|s| s.len() + 1).sum();
+    let mut ret = String::with_capacity(size);
+
+    let mut set_iter = hs.iter();
+    if let Some(first) = set_iter.next() {
+        ret.push_str(first);
+    }
+    for s in set_iter {
+        ret.push(',');
+        ret.push_str(s);
+    }
+
+    ret
+}
+
 impl BomItemData {
-    pub fn get_name(&self) -> &str {
+    /*pub fn get_name(&self) -> &str {
         &self.name
     }
 
     pub fn get_quantity(&self) -> i32 {
         self.quantity
-    }
+    }*/
 
     pub fn get_mpn_list(&self) -> Vec<&str> {
         self.order_data
             .iter()
+            .map(|f| f.order_desc.as_str())
+            .collect()
+    }
+
+    pub fn get_mpn_diff_list(&self, other_list: &[&str]) -> Vec<&str> {
+        self.order_data
+            .iter()
+            .filter(|f| !other_list.contains(&f.order_desc.as_str()))
             .map(|f| f.order_desc.as_str())
             .collect()
     }
